@@ -8,15 +8,15 @@ A full-service creative agency specializing in photography, videography, graphic
 
 ## GitHub Hosting
 
-1. Create a GitHub repository named `sef-multimedia-global`.
+1. Create a GitHub repository named `SEF-Multimedia-Global`.
 2. Add the remote and push your project:
    - `git init`
    - `git add .`
-   - `git commit -m "Initial commit"
+   - `git commit -m "Initial commit"`
    - `git branch -M main`
-   - `git remote add origin https://github.com/<YOUR_GITHUB_USERNAME>/sef-multimedia-global.git`
+   - `git remote add origin https://github.com/dronegodone2022-netizen/SEF-Multimedia-Global.git`
    - `git push -u origin main`
-3. Replace `<YOUR_GITHUB_USERNAME>` in `package.json` with your GitHub username.
+3. Your repository is already configured with the published homepage URL.
 
 ## Run Locally
 
@@ -30,7 +30,14 @@ A full-service creative agency specializing in photography, videography, graphic
 
 ## Deployment
 
-This project includes a GitHub Actions workflow for CI build validation. The workflow is located at `.github/workflows/ci.yml` and runs on push and pull request.
+This project includes two GitHub Actions workflows:
+
+- `.github/workflows/ci.yml` for build validation on push and pull request
+- `.github/workflows/deploy.yml` for publishing the app to GitHub Pages when `main` is updated
+
+The app will be published to:
+
+`https://dronegodone2022-netizen.github.io/SEF-Multimedia-Global`
 
 ## GitHub Actions
 

@@ -1,0 +1,8 @@
+{
+  "name": "SEF Multimedia Global",
+  "description": "A full-service creative agency specializing in photography, videography, graphic design, and web development.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

@@ -6,12 +6,12 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/<YOUR_GITHUB_USERNAME>/sef-multimedia-global.git"
+    "url": "https://github.com/dronegodone2022-netizen/SEF-Multimedia-Global.git"
   },
   "bugs": {
-    "url": "https://github.com/<YOUR_GITHUB_USERNAME>/sef-multimedia-global/issues"
+    "url": "https://github.com/dronegodone2022-netizen/SEF-Multimedia-Global/issues"
   },
-  "homepage": "https://<YOUR_GITHUB_USERNAME>.github.io/sef-multimedia-global",
+  "homepage": "https://dronegodone2022-netizen.github.io/SEF-Multimedia-Global",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

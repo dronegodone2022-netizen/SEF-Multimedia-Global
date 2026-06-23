@@ -6,6 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SEF Multimedia Global | Creative Agency</title>
     <base href="./">
+    <script>
+      (function () {
+        var search = new URLSearchParams(window.location.search);
+        var route = search.get('p');
+
+        if (!route) return;
+
+        search.delete('p');
+        var query = search.toString();
+        var cleanPath = window.location.pathname.replace(/\/$/, '');
+        window.history.replaceState(
+          null,
+          '',
+          cleanPath + decodeURIComponent(route) + (query ? '?' + query : '') + window.location.hash
+        );
+      })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,10 +36,10 @@
         scroll-behavior: smooth;
       }
       h1, h2, h3, h4, h5, h6 {
-        font-family: 'League+Spartan', sans-serif;
+        font-family: 'League Spartan', sans-serif;
       }
       .league-spartan {
-        font-family: 'League+Spartan', sans-serif;
+        font-family: 'League Spartan', sans-serif;
       }
       ::-webkit-scrollbar {
         width: 8px;
@@ -50,7 +67,7 @@
   }
 }
 </script>
-  <script type="module" crossorigin src="./assets/index-B7alUqop.js"></script>
+  <script type="module" crossorigin src="./assets/index-CHLSnF6c.js"></script>
   <link rel="modulepreload" crossorigin href="./assets/react-C1FjzFWY.js">
   <link rel="modulepreload" crossorigin href="./assets/scheduler-Bb8JjhAW.js">
   <link rel="modulepreload" crossorigin href="./assets/react-dom-6HM2wME8.js">

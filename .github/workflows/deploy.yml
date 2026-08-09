@@ -23,6 +23,8 @@ jobs:
         run: npm ci
 
       - name: Build project
+        env:
+          VITE_BASE_PATH: /SEF-Multimedia-Global/
         run: npm run build
 
       - name: Deploy to GitHub Pages

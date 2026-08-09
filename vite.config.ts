@@ -4,8 +4,9 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
+    const basePath = process.env.VITE_BASE_PATH || '/';
     return {
-      base: mode === 'production' ? '/SEF-Multimedia-Global/' : '/',
+      base: mode === 'production' ? basePath : '/',
       server: {
         port: 3000,
         host: '0.0.0.0',

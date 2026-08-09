@@ -9,8 +9,6 @@ export function validateEnvironment(): void {
   const env = (import.meta as any).env || {};
   const missing: string[] = [];
   if (!env.VITE_GOOGLE_CLIENT_ID) missing.push('VITE_GOOGLE_CLIENT_ID');
-  if (!env.VITE_ADMIN_EMAIL) missing.push('VITE_ADMIN_EMAIL');
-  if (!env.VITE_ADMIN_PASSWORD) missing.push('VITE_ADMIN_PASSWORD');
   if (missing.length > 0) {
     // Friendly console warning for developer
     // Keep silent in production builds if env injection is not present

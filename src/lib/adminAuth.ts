@@ -90,8 +90,8 @@ export function updateAdminLastVisit(): void {
 }
 
 export function verifyAdminCredentials(email: string, password: string): boolean {
-  const env = (import.meta as any).env || {};
-  const envEmail = env.VITE_ADMIN_EMAIL || 'admin@multimedia.com';
-  const envPass = env.VITE_ADMIN_PASSWORD || 'Admin@123';
-  return email === envEmail && password === envPass;
+	// Legacy credential fallback is disabled. Authentication must be handled by backend services.
+	void email;
+	void password;
+	return false;
 }

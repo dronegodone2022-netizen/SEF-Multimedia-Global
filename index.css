@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+:root {
+  /* Brand palette overrides for the current Tailwind amber / indigo utilities */
+  --color-amber-50: #fff7ed;
+  --color-amber-100: #ffedd5;
+  --color-amber-200: #fed7aa;
+  --color-amber-300: #fdba74;
+  --color-amber-400: #fb923c;
+  --color-amber-500: #f97316;
+  --color-amber-600: #ea580c;
+  --color-amber-700: #c2410c;
+  --color-amber-800: #9a3412;
+  --color-amber-900: #7c2d12;
+
+  --color-indigo-50: #eef2ff;
+  --color-indigo-100: #e0e7ff;
+  --color-indigo-200: #c7d2fe;
+  --color-indigo-300: #a5b4fc;
+  --color-indigo-400: #818cf8;
+  --color-indigo-500: #6366f1;
+  --color-indigo-600: #4f46e5;
+  --color-indigo-700: #4338ca;
+  --color-indigo-800: #3730a3;
+  --color-indigo-900: #312e81;
+}
+
 /* Minimal global styles */
 html, body, #root {
   height: 100%;

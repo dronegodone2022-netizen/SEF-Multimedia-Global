@@ -15,8 +15,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:root": "cross-env VITE_BASE_PATH=/ vite build",
-    "build:gh-pages": "cross-env VITE_BASE_PATH=/SEF-Multimedia-Global/ vite build",
+    "build:root": "cross-env VITE_ASSET_BASE=./ VITE_BASE_PATH=/ vite build",
+    "build:gh-pages": "cross-env VITE_ASSET_BASE=./ VITE_BASE_PATH=/SEF-Multimedia-Global/ vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "deploy": "gh-pages -d dist"

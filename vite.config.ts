@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
-    const basePath = process.env.VITE_BASE_PATH || '/';
+    const basePath = process.env.VITE_ASSET_BASE || './';
     return {
       base: mode === 'production' ? basePath : '/',
       server: {

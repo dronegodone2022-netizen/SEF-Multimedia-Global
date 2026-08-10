@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+.insforge/
+
+# Local debug artifacts
+deployed_css.txt
+ghpages_page.html
+ghpages_repo.html
 
 # Editor directories and files
 .vscode/*

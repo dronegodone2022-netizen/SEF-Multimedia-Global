@@ -15,12 +15,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:root": "cross-env VITE_BASE_PATH=/ vite build",
+    "build:gh-pages": "cross-env VITE_BASE_PATH=/SEF-Multimedia-Global/ vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
+    "@insforge/sdk": "^1.5.2",
     "@react-oauth/google": "^0.13.5",
     "@tailwindcss/vite": "^4.3.0",
     "jspdf": "^4.2.1",
@@ -36,6 +39,7 @@
     "@types/react": "^19.2.15",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
+    "cross-env": "^7.0.3",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vite-plugin-gh-pages": "^1.0.1"

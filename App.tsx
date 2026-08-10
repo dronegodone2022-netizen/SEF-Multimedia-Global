@@ -1,5 +1,5 @@
 
-import React, { useEffect, lazy, Suspense } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import Header from './components/Header';
@@ -9,7 +9,9 @@ import Portfolio from './components/Portfolio';
 import FAQ from './components/FAQ';
 import Testimonials from './components/Testimonials';
 import Footer from './components/Footer';
-import { isAdminAuthenticated } from './src/lib/adminAuth';
+import { getCurrentInsforgeUserAsync } from './src/lib/insforge';
+
+const routerBasePath = import.meta.env.VITE_BASE_PATH || '/';
 
 const CategoryPage = lazy(() => import('./components/CategoryPage'));
 const ProjectDetailPage = lazy(() => import('./components/ProjectDetailPage'));
@@ -25,7 +27,22 @@ const AdminLogin = lazy(() => import('./admin/AdminLogin'));
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const ProtectedAdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return isAdminAuthenticated() ? <>{children}</> : <Navigate to="/admin/login" replace />;
+  const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+
+  useEffect(() => {
+    const verifySession = async () => {
+      const user = await getCurrentInsforgeUserAsync();
+      setStatus(user?.id ? 'authenticated' : 'unauthenticated');
+    };
+
+    verifySession();
+  }, []);
+
+  if (status === 'loading') {
+    return <div className="min-h-screen flex items-center justify-center">Checking admin session...</div>;
+  }
+
+  return status === 'authenticated' ? <>{children}</> : <Navigate to="/admin/login" replace />;
 };
 
 const Home = () => (
@@ -93,7 +110,7 @@ function App() {
 
   return googleClientId ? (
     <GoogleOAuthProvider clientId={googleClientId}>
-      <Router>
+      <Router basename={routerBasePath}>
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
           <div className="bg-white selection:bg-indigo-600 selection:text-white">
             <Routes>
@@ -128,7 +145,7 @@ function App() {
       </Router>
     </GoogleOAuthProvider>
   ) : (
-    <Router>
+    <Router basename={routerBasePath}>
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
         <div className="bg-white selection:bg-indigo-600 selection:text-white">
           <Routes>

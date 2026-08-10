@@ -1,30 +1,40 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { verifyAdminCredentials, loginAdmin, isAdminAuthenticated } from '../src/lib/adminAuth';
+import { verifyAdminCredentials, loginAdmin } from '../src/lib/adminAuth';
+import { getCurrentInsforgeUserAsync } from '../src/lib/insforge';
 
 const AdminLogin = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isAdminAuthenticated()) {
-      navigate('/admin', { replace: true });
-    }
+    const checkUser = async () => {
+      const user = await getCurrentInsforgeUserAsync();
+      if (user?.id) {
+        navigate('/admin', { replace: true });
+      }
+    };
+
+    checkUser();
   }, [navigate]);
 
-  const handleSubmit = (event: any) => {
+  const handleSubmit = async (event: any) => {
     event.preventDefault();
     setError('');
+    setLoading(true);
 
-    if (verifyAdminCredentials(email, password)) {
+    const isValid = await verifyAdminCredentials(email, password);
+    if (isValid) {
       loginAdmin();
       navigate('/admin', { replace: true });
-      return;
+    } else {
+      setError('Email or password is incorrect. Please try again.');
     }
 
-    setError('Email or password is incorrect. Please try again.');
+    setLoading(false);
   };
 
   return (

@@ -29,8 +29,8 @@ import {
   logoutAdmin,
   updateAdminLastActive,
   updateAdminLastVisit,
-  isAdminAuthenticated,
 } from '../src/lib/adminAuth';
+import { getCurrentInsforgeUserAsync } from '../src/lib/insforge';
 
 interface NavItem {
   path: string;
@@ -47,8 +47,8 @@ const AdminDashboard: React.FC = () => {
   const idleLogoutTimer = useRef<number | null>(null);
   const authCheckInterval = useRef<number | null>(null);
 
-  const handleLogout = () => {
-    logoutAdmin();
+  const handleLogout = async () => {
+    await logoutAdmin();
     navigate('/admin/login', { replace: true });
   };
 
@@ -85,12 +85,13 @@ const AdminDashboard: React.FC = () => {
       scheduleIdleLogout();
     };
 
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState === 'hidden') {
         updateAdminLastVisit();
       } else if (document.visibilityState === 'visible') {
-        if (!isAdminAuthenticated()) {
-          logoutAdmin();
+        const user = await getCurrentInsforgeUserAsync();
+        if (!user?.id) {
+          await logoutAdmin();
           navigate('/admin/login', { replace: true });
         } else {
           updateAdminLastActive();
@@ -100,9 +101,10 @@ const AdminDashboard: React.FC = () => {
       }
     };
 
-    const handleAuthCheck = () => {
-      if (!isAdminAuthenticated()) {
-        logoutAdmin();
+    const handleAuthCheck = async () => {
+      const user = await getCurrentInsforgeUserAsync();
+      if (!user?.id) {
+        await logoutAdmin();
         navigate('/admin/login', { replace: true });
       }
     };

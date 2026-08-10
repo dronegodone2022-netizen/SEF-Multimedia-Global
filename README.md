@@ -30,14 +30,27 @@ A full-service creative agency specializing in photography, videography, graphic
 
 ## Deployment
 
-This project includes two GitHub Actions workflows:
+This project includes three GitHub Actions workflows:
 
 - `.github/workflows/ci.yml` for build validation on push and pull request
 - `.github/workflows/deploy.yml` for publishing the app to GitHub Pages when `main` is updated
+- `.github/workflows/hostinger-deploy.yml` for publishing the app to Hostinger automatically when `main` is updated
 
 The app will be published to:
 
-`https://dronegodone2022-netizen.github.io/SEF-Multimedia-Global`
+- GitHub Pages: `https://dronegodone2022-netizen.github.io/SEF-Multimedia-Global`
+- Hostinger: your Hostinger site URL once configured
+
+### Hostinger automatic deploy setup
+
+To enable Hostinger deploys from GitHub, add the following repository secrets in GitHub:
+
+- `HOSTINGER_FTP_SERVER` — your Hostinger FTP server hostname
+- `HOSTINGER_FTP_USERNAME` — your Hostinger FTP username
+- `HOSTINGER_FTP_PASSWORD` — your Hostinger FTP password
+- `HOSTINGER_REMOTE_DIR` — the remote directory on Hostinger (for example `/public_html`)
+
+Once the secrets are configured, pushing to `main` will build the app with `npm run build:root` and upload `dist/` to Hostinger.
 
 ## GitHub Actions
 

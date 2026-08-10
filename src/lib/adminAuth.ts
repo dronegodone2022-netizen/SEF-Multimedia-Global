@@ -1,4 +1,5 @@
 import { forceSaveStore, getDataStore, reloadStore } from '../../services/dataStore';
+import { getCurrentInsforgeUserAsync, signInWithEmail, signOutFromInsforge } from './insforge';
 
 const ADMIN_AUTH_KEY = 'admin_authenticated';
 const ADMIN_LAST_ACTIVE_KEY = 'admin_last_active';
@@ -24,50 +25,35 @@ function clearAdminSessionStorage(): void {
   localStorage.removeItem(ADMIN_LAST_VISIT_KEY);
 }
 
-export function isAdminAuthenticated(): boolean {
-	try {
-		const isAuthenticated = localStorage.getItem(ADMIN_AUTH_KEY) === 'true';
-		if (!isAuthenticated) return false;
-
-		const now = Date.now();
-		const lastActive = getTimestamp(ADMIN_LAST_ACTIVE_KEY);
-		const lastVisit = getTimestamp(ADMIN_LAST_VISIT_KEY);
-
-		if (lastActive && now - lastActive > ADMIN_INACTIVITY_TIMEOUT_MS) {
-			clearAdminSessionStorage();
-			return false;
-		}
-
-		if (lastVisit && now - lastVisit > ADMIN_SESSION_TIMEOUT_MS) {
-			clearAdminSessionStorage();
-			return false;
-		}
-
-		return true;
-	} catch (e) {
-		return false;
-	}
+export async function isAdminAuthenticatedAsync(): Promise<boolean> {
+  try {
+    const user = await getCurrentInsforgeUserAsync();
+    return Boolean(user?.id);
+  } catch (e) {
+    return false;
+  }
 }
 
 export function loginAdmin(): void {
-	try {
-		localStorage.setItem(ADMIN_AUTH_KEY, 'true');
-		updateTimestamp(ADMIN_LAST_ACTIVE_KEY);
-		updateTimestamp(ADMIN_LAST_VISIT_KEY);
+  try {
+    localStorage.setItem(ADMIN_AUTH_KEY, 'true');
+    updateTimestamp(ADMIN_LAST_ACTIVE_KEY);
+    updateTimestamp(ADMIN_LAST_VISIT_KEY);
 
-		// Reload persisted data into in-memory arrays so the dashboard shows stored data after login
-		reloadStore();
-	} catch (e) {
-		// ignore
-	}
+    // Reload persisted data into in-memory arrays so the dashboard shows stored data after login
+    reloadStore();
+  } catch (e) {
+    // ignore
+  }
 }
 
-export function logoutAdmin(): void {
-	try {
-		// Force save all data before logout
-		const dataStore = getDataStore();
-		forceSaveStore(dataStore);
-		clearAdminSessionStorage();
+export async function logoutAdmin(): Promise<void> {
+  try {
+    // Force save all data before logout
+    const dataStore = getDataStore();
+    forceSaveStore(dataStore);
+    clearAdminSessionStorage();
+    await signOutFromInsforge();
   } catch (e) {
     // ignore
   }
@@ -89,9 +75,17 @@ export function updateAdminLastVisit(): void {
   }
 }
 
-export function verifyAdminCredentials(email: string, password: string): boolean {
-	// Legacy credential fallback is disabled. Authentication must be handled by backend services.
-	void email;
-	void password;
-	return false;
+export async function verifyAdminCredentials(email: string, password: string): Promise<boolean> {
+  try {
+    const response = await signInWithEmail({ email, password });
+    const error = (response as any)?.error;
+    if (error) {
+      return false;
+    }
+
+    const user = (response as any)?.data?.user ?? (response as any)?.data;
+    return Boolean(user?.id);
+  } catch (e) {
+    return false;
+  }
 }

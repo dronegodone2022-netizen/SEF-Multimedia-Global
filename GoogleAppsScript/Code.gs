@@ -1,470 +1,376 @@
-/**
- * Google Apps Script Backend for Multimedia Admin System
- * Handles authentication, CRUD operations, and Google Sheets management
- */
+var DASHBOARD_FILE_NAME = 'sef-dashboard-data.json';
+var ROOT_FOLDER_NAME = 'SEF Multimedia Global';
+var DASHBOARD_SHEETS_FOLDER_NAME = 'Dashboard Sheets';
+var DASHBOARD_SPREADSHEET_NAME = 'SEF Multimedia Global Records';
+var DASHBOARD_SPREADSHEET_PROPERTY = 'SEF_DASHBOARD_SPREADSHEET_ID';
 
-const SPREADSHEET_ID = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || 'YOUR_SPREADSHEET_ID';
+var DASHBOARD_COLLECTIONS = [
+	{ key: 'currentUser', sheetName: 'Current User' },
+	{ key: 'users', sheetName: 'Users' },
+	{ key: 'clients', sheetName: 'Clients' },
+	{ key: 'bookings', sheetName: 'Bookings' },
+	{ key: 'payments', sheetName: 'Payments' },
+	{ key: 'invoices', sheetName: 'Invoices' },
+	{ key: 'expenses', sheetName: 'Expenses' },
+	{ key: 'pettyCash', sheetName: 'Petty Cash' },
+	{ key: 'freelancers', sheetName: 'Freelancers' },
+	{ key: 'employees', sheetName: 'Employees' },
+	{ key: 'assets', sheetName: 'Assets' },
+	{ key: 'students', sheetName: 'Students' }
+];
 
-// ==================== SHEET STRUCTURE ====================
-const SHEETS = {
-  USERS: 'Users',
-  CLIENTS: 'Clients',
-  BOOKINGS: 'Bookings',
-  INVOICES: 'Invoices',
-  FREELANCERS: 'Freelancers',
-  EMPLOYEES: 'Employees',
-  EXPENSES: 'Expenses'
-};
-
-// ==================== AUTHENTICATION ====================
-
-/**
- * POST: Verify admin credentials
- */
-function doPost(e) {
-  try {
-    const payload = JSON.parse(e.postData.contents);
-    const action = payload.action;
-
-    switch (action) {
-      case 'verifyLogin':
-        return handleVerifyLogin(payload);
-      case 'createRecord':
-        return handleCreateRecord(payload);
-      case 'updateRecord':
-        return handleUpdateRecord(payload);
-      case 'deleteRecord':
-        return handleDeleteRecord(payload);
-      case 'getRecords':
-        return handleGetRecords(payload);
-      case 'getSingleRecord':
-        return handleGetSingleRecord(payload);
-      case 'getDashboardMetrics':
-        return handleGetDashboardMetrics();
-      case 'generateInvoice':
-        return handleGenerateInvoice(payload);
-      default:
-        return createResponse(false, 'Unknown action', null, 400);
-    }
-  } catch (error) {
-    Logger.log('Error in doPost: ' + error);
-    return createResponse(false, 'Server error: ' + error.message, null, 500);
-  }
+function jsonOutput(payload) {
+	return ContentService
+		.createTextOutput(JSON.stringify(payload))
+		.setMimeType(ContentService.MimeType.JSON);
 }
 
-/**
- * GET: Initialize spreadsheet if needed
- */
+function getOrCreateRootFolder_() {
+	var folders = DriveApp.getFoldersByName(ROOT_FOLDER_NAME);
+	if (folders.hasNext()) {
+		return folders.next();
+	}
+	return DriveApp.createFolder(ROOT_FOLDER_NAME);
+}
+
+function getDashboardSheetsFolder_() {
+	var root = getOrCreateRootFolder_();
+	var folders = root.getFoldersByName(DASHBOARD_SHEETS_FOLDER_NAME);
+	if (folders.hasNext()) {
+		return folders.next();
+	}
+	return root.createFolder(DASHBOARD_SHEETS_FOLDER_NAME);
+}
+
+function getScriptProperties_() {
+	return PropertiesService.getScriptProperties();
+}
+
+function getSavedSpreadsheetId_() {
+	return getScriptProperties_().getProperty(DASHBOARD_SPREADSHEET_PROPERTY);
+}
+
+function setSavedSpreadsheetId_(spreadsheetId) {
+	getScriptProperties_().setProperty(DASHBOARD_SPREADSHEET_PROPERTY, spreadsheetId);
+}
+
+function isPlainObject_(value) {
+	return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeCellValue_(value) {
+	if (value === null || value === undefined) {
+		return '';
+	}
+
+	if (value instanceof Date) {
+		return value.toISOString();
+	}
+
+	if (Array.isArray(value) || isPlainObject_(value)) {
+		return JSON.stringify(value);
+	}
+
+	return value;
+}
+
+function collectHeaders_(rows) {
+	var headers = [];
+	var seen = {};
+
+	rows.forEach(function (row) {
+		if (!isPlainObject_(row)) {
+			return;
+		}
+
+		Object.keys(row).forEach(function (key) {
+			if (!seen[key]) {
+				seen[key] = true;
+				headers.push(key);
+			}
+		});
+	});
+
+	if (!headers.length) {
+		headers = ['id', 'name', 'value'];
+	}
+
+	return headers;
+}
+
+function writeCollectionSheet_(spreadsheet, sheetName, rows) {
+	var sheet = spreadsheet.getSheetByName(sheetName);
+	if (!sheet) {
+		sheet = spreadsheet.insertSheet(sheetName);
+	}
+
+	sheet.clearContents();
+
+	var dataRows = Array.isArray(rows) ? rows : [];
+	var headers = collectHeaders_(dataRows);
+	var values = [headers];
+
+	dataRows.forEach(function (row) {
+		var dataRow = headers.map(function (header) {
+			return normalizeCellValue_(row[header]);
+		});
+		values.push(dataRow);
+	});
+
+	if (values.length === 1) {
+		values.push(headers.map(function () { return ''; }));
+	}
+
+	sheet.getRange(1, 1, values.length, headers.length).setValues(values);
+	sheet.setFrozenRows(1);
+	sheet.autoResizeColumns(1, headers.length);
+}
+
+function getOrCreateDashboardSpreadsheet_() {
+	var spreadsheetId = getSavedSpreadsheetId_();
+	if (spreadsheetId) {
+		try {
+			return SpreadsheetApp.openById(spreadsheetId);
+		} catch (error) {
+			getScriptProperties_().deleteProperty(DASHBOARD_SPREADSHEET_PROPERTY);
+		}
+	}
+
+	var folder = getDashboardSheetsFolder_();
+	var files = folder.getFilesByName(DASHBOARD_SPREADSHEET_NAME);
+	if (files.hasNext()) {
+		var existingFile = files.next();
+		setSavedSpreadsheetId_(existingFile.getId());
+		return SpreadsheetApp.openById(existingFile.getId());
+	}
+
+	var spreadsheet = SpreadsheetApp.create(DASHBOARD_SPREADSHEET_NAME);
+	DriveApp.getFileById(spreadsheet.getId()).moveTo(folder);
+	setSavedSpreadsheetId_(spreadsheet.getId());
+	return spreadsheet;
+}
+
+function syncDashboardSpreadsheet_(payload) {
+	var spreadsheet = getOrCreateDashboardSpreadsheet_();
+	var snapshot = payload || {};
+
+	DASHBOARD_COLLECTIONS.forEach(function (collection) {
+		var sheetRows = collection.key === 'currentUser'
+			? (snapshot.currentUser ? [snapshot.currentUser] : [])
+			: (Array.isArray(snapshot[collection.key]) ? snapshot[collection.key] : []);
+		writeCollectionSheet_(spreadsheet, collection.sheetName, sheetRows);
+	});
+
+	var overview = spreadsheet.getSheetByName('Overview');
+	if (!overview) {
+		overview = spreadsheet.getSheets()[0];
+		if (overview) {
+			overview.setName('Overview');
+		} else {
+			overview = spreadsheet.insertSheet('Overview', 0);
+		}
+	}
+
+	overview.clearContents();
+	overview.getRange(1, 1, 5, 2).setValues([
+		['Dashboard Snapshot', DASHBOARD_SPREADSHEET_NAME],
+		['Last Updated', new Date().toISOString()],
+		['Source Folder', ROOT_FOLDER_NAME],
+		['Data File', DASHBOARD_FILE_NAME],
+		['Cloud Mode', 'Apps Script + Google Drive']
+	]);
+	overview.autoResizeColumns(1, 2);
+
+	return spreadsheet;
+}
+
+function getProductionAccounts_() {
+	return [
+		{
+			id: 'u1',
+			name: 'Sylvester SEF',
+			email: 'sylvester.sef@sefmultimedia.com',
+			password: 'Admin@SEF2024',
+			role: 'super_admin'
+		},
+		{
+			id: 'u2',
+			name: 'Bintu Gbamoi',
+			email: 'bintu.g@sefmultimedia.com',
+			password: 'Operation@232',
+			role: 'operations'
+		},
+		{
+			id: 'u3',
+			name: 'Jestina Y.',
+			email: 'jestina.y@sefmultimedia.com',
+			password: 'Operation@232',
+			role: 'people_admin'
+		}
+	];
+}
+
+function testSavePermission() {
+	var sampleData = JSON.stringify({
+		currentUser: {
+			id: 'u1',
+			name: 'Sylvester SEF',
+			email: 'sylvester.sef@sefmultimedia.com',
+			password: 'admin123',
+			role: 'super_admin'
+		},
+		users: getProductionAccounts_(),
+		clients: [],
+		bookings: [],
+		payments: [],
+		invoices: [],
+		expenses: [],
+		pettyCash: [],
+		freelancers: [],
+		employees: [],
+		assets: [],
+		students: []
+	});
+
+	var result = saveDashboardPayload_(sampleData);
+	Logger.log(JSON.stringify(result, null, 2));
+}
+
+function getDashboardFile_() {
+	var folder = getOrCreateRootFolder_();
+	var files = folder.getFilesByName(DASHBOARD_FILE_NAME);
+	if (files.hasNext()) {
+		return files.next();
+	}
+	return null;
+}
+
+function saveDashboardPayload_(rawPayload) {
+	if (!rawPayload) {
+		throw new Error('Missing payload.');
+	}
+
+	var parsed = JSON.parse(rawPayload);
+	var spreadsheet = syncDashboardSpreadsheet_(parsed);
+	var folder = getOrCreateRootFolder_();
+	var file = getDashboardFile_();
+	var content = JSON.stringify(parsed);
+	var sheetUrl = spreadsheet ? spreadsheet.getUrl() : '';
+
+	if (file) {
+		file.setContent(content);
+		return {
+			id: file.getId(),
+			name: file.getName(),
+			updatedAt: new Date().toISOString(),
+			sheetId: getSavedSpreadsheetId_(),
+			sheetUrl: sheetUrl
+		};
+	}
+
+	var created = folder.createFile(DASHBOARD_FILE_NAME, content, MimeType.PLAIN_TEXT);
+	return {
+		id: created.getId(),
+		name: created.getName(),
+		updatedAt: new Date().toISOString(),
+		sheetId: getSavedSpreadsheetId_(),
+		sheetUrl: sheetUrl
+	};
+}
+
+function loadDashboardPayload_() {
+	var file = getDashboardFile_();
+	if (!file) {
+		return null;
+	}
+
+	var content = file.getBlob().getDataAsString();
+	if (!content) {
+		return null;
+	}
+
+	return JSON.parse(content);
+}
+
+function normalizeRole_(rawRole) {
+	var role = String(rawRole || 'super_admin').toLowerCase();
+	if (role === 'operations' || role === 'operation') return 'operation';
+	if (role === 'people_ops' || role === 'people' || role === 'people_admin') return 'people_ops';
+	return 'super_admin';
+}
+
+function authenticateDashboardUser_(email, password) {
+	var normalizedEmail = String(email || '').trim().toLowerCase();
+	var normalizedPassword = String(password || '');
+
+	if (!normalizedEmail || !normalizedPassword) {
+		return null;
+	}
+
+	var snapshot = loadDashboardPayload_() || {};
+	var snapshotUsers = Array.isArray(snapshot.users) ? snapshot.users : [];
+	var users = getProductionAccounts_().concat(snapshotUsers);
+
+	for (var i = 0; i < users.length; i++) {
+		var user = users[i] || {};
+		var userEmail = String(user.email || '').trim().toLowerCase();
+		var userPassword = String(user.password || '');
+
+		if (userEmail === normalizedEmail && userPassword === normalizedPassword) {
+			return {
+				id: user.id || ('admin-' + (i + 1)),
+				name: user.name || 'Administrator',
+				email: userEmail,
+				role: normalizeRole_(user.role)
+			};
+		}
+	}
+
+	return null;
+}
+
 function doGet(e) {
-  try {
-    const action = e.parameter.action || 'init';
+	try {
+		var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : 'load';
+		if (action !== 'load') {
+			return jsonOutput({ ok: false, error: 'Unsupported action for GET.' });
+		}
 
-    if (action === 'init') {
-      initializeSpreadsheet();
-      return HtmlService.createHtmlOutput('Spreadsheet initialized');
-    }
-
-    return HtmlService.createHtmlOutput('Google Apps Script API ready');
-  } catch (error) {
-    return HtmlService.createHtmlOutput('Error: ' + error.message);
-  }
+		return jsonOutput({
+			ok: true,
+			data: loadDashboardPayload_(),
+			sheetId: getSavedSpreadsheetId_(),
+			sheetUrl: getSavedSpreadsheetId_() ? SpreadsheetApp.openById(getSavedSpreadsheetId_()).getUrl() : ''
+		});
+	} catch (error) {
+		return jsonOutput({ ok: false, error: String(error) });
+	}
 }
 
-// ==================== AUTHENTICATION LOGIC ====================
-
-function handleVerifyLogin(payload) {
-  const { email, password } = payload;
-
-  if (!email || !password) {
-    return createResponse(false, 'Email and password required', null, 400);
-  }
-
-  const users = getSheetData(SHEETS.USERS);
-  const user = users.find(u => u.email === email);
-
-  if (!user) {
-    return createResponse(false, 'Invalid email or password', null, 401);
-  }
-
-  // Simple password check (in production, use proper hashing/verification)
-  if (user.password !== password) {
-    return createResponse(false, 'Invalid email or password', null, 401);
-  }
-
-  if (user.role !== 'Admin' && user.role !== 'Employee') {
-    return createResponse(false, 'Insufficient permissions', null, 403);
-  }
-
-  const sessionToken = generateSessionToken();
-  
-  return createResponse(true, 'Login successful', {
-    token: sessionToken,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    }
-  });
-}
-
-// ==================== CRUD OPERATIONS ====================
-
-function handleCreateRecord(payload) {
-  const { sheet, data } = payload;
-
-  if (!sheet || !data) {
-    return createResponse(false, 'Sheet and data required', null, 400);
-  }
-
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheetObj = ss.getSheetByName(sheet);
-
-    if (!sheetObj) {
-      return createResponse(false, `Sheet '${sheet}' not found`, null, 404);
-    }
-
-    // Add ID if not exists
-    if (!data.id) {
-      data.id = generateUniqueId();
-    }
-
-    // Add timestamp
-    data.createdAt = new Date().toISOString();
-    data.updatedAt = new Date().toISOString();
-
-    // Get headers from first row
-    const headers = sheetObj.getRange(1, 1, 1, sheetObj.getLastColumn()).getValues()[0];
-    
-    // Build row data
-    const rowData = headers.map(header => data[header] || '');
-    
-    // Append row
-    sheetObj.appendRow(rowData);
-
-    return createResponse(true, 'Record created', { id: data.id });
-  } catch (error) {
-    Logger.log('Error creating record: ' + error);
-    return createResponse(false, 'Error creating record: ' + error.message, null, 500);
-  }
-}
-
-function handleUpdateRecord(payload) {
-  const { sheet, recordId, data } = payload;
-
-  if (!sheet || !recordId || !data) {
-    return createResponse(false, 'Sheet, recordId, and data required', null, 400);
-  }
-
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheetObj = ss.getSheetByName(sheet);
-
-    if (!sheetObj) {
-      return createResponse(false, `Sheet '${sheet}' not found`, null, 404);
-    }
-
-    const headers = sheetObj.getRange(1, 1, 1, sheetObj.getLastColumn()).getValues()[0];
-    const lastRow = sheetObj.getLastRow();
-    
-    // If no data rows exist, return not found
-    if (lastRow < 2) {
-      return createResponse(false, 'Record not found', null, 404);
-    }
-    
-    const allData = sheetObj.getRange(2, 1, lastRow - 1, sheetObj.getLastColumn()).getValues();
-
-    // Find row with matching ID
-    let rowIndex = -1;
-    for (let i = 0; i < allData.length; i++) {
-      if (allData[i][headers.indexOf('id')] === recordId) {
-        rowIndex = i + 2; // +2 because we start from row 2 and arrays are 0-indexed
-        break;
-      }
-    }
-
-    if (rowIndex === -1) {
-      return createResponse(false, 'Record not found', null, 404);
-    }
-
-    // Update timestamp
-    data.updatedAt = new Date().toISOString();
-
-    // Update cells
-    headers.forEach((header, idx) => {
-      if (data[header] !== undefined) {
-        sheetObj.getRange(rowIndex, idx + 1).setValue(data[header]);
-      }
-    });
-
-    return createResponse(true, 'Record updated', { id: recordId });
-  } catch (error) {
-    Logger.log('Error updating record: ' + error);
-    return createResponse(false, 'Error updating record: ' + error.message, null, 500);
-  }
-}
-
-function handleDeleteRecord(payload) {
-  const { sheet, recordId } = payload;
-
-  if (!sheet || !recordId) {
-    return createResponse(false, 'Sheet and recordId required', null, 400);
-  }
-
-  try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheetObj = ss.getSheetByName(sheet);
-
-    if (!sheetObj) {
-      return createResponse(false, `Sheet '${sheet}' not found`, null, 404);
-    }
-
-    const headers = sheetObj.getRange(1, 1, 1, sheetObj.getLastColumn()).getValues()[0];
-    const lastRow = sheetObj.getLastRow();
-    
-    // If no data rows exist, return not found
-    if (lastRow < 2) {
-      return createResponse(false, 'Record not found', null, 404);
-    }
-    
-    const allData = sheetObj.getRange(2, 1, lastRow - 1, sheetObj.getLastColumn()).getValues();
-
-    // Find row with matching ID
-    let rowIndex = -1;
-    for (let i = 0; i < allData.length; i++) {
-      if (allData[i][headers.indexOf('id')] === recordId) {
-        rowIndex = i + 2;
-        break;
-      }
-    }
-
-    if (rowIndex === -1) {
-      return createResponse(false, 'Record not found', null, 404);
-    }
-
-    sheetObj.deleteRow(rowIndex);
-    return createResponse(true, 'Record deleted', { id: recordId });
-  } catch (error) {
-    Logger.log('Error deleting record: ' + error);
-    return createResponse(false, 'Error deleting record: ' + error.message, null, 500);
-  }
-}
-
-function handleGetRecords(payload) {
-  const { sheet, filter } = payload;
-
-  if (!sheet) {
-    return createResponse(false, 'Sheet required', null, 400);
-  }
-
-  try {
-    let records = getSheetData(sheet);
-
-    // Apply filters if provided
-    if (filter) {
-      records = records.filter(record => {
-        return Object.keys(filter).every(key => record[key] === filter[key]);
-      });
-    }
-
-    return createResponse(true, 'Records retrieved', records);
-  } catch (error) {
-    Logger.log('Error getting records: ' + error);
-    return createResponse(false, 'Error getting records: ' + error.message, null, 500);
-  }
-}
-
-function handleGetSingleRecord(payload) {
-  const { sheet, recordId } = payload;
-
-  if (!sheet || !recordId) {
-    return createResponse(false, 'Sheet and recordId required', null, 400);
-  }
-
-  try {
-    const records = getSheetData(sheet);
-    const record = records.find(r => r.id === recordId);
-
-    if (!record) {
-      return createResponse(false, 'Record not found', null, 404);
-    }
-
-    return createResponse(true, 'Record retrieved', record);
-  } catch (error) {
-    return createResponse(false, 'Error getting record: ' + error.message, null, 500);
-  }
-}
-
-// ==================== DASHBOARD & METRICS ====================
-
-function handleGetDashboardMetrics() {
-  try {
-    const bookings = getSheetData(SHEETS.BOOKINGS);
-    const clients = getSheetData(SHEETS.CLIENTS);
-    const invoices = getSheetData(SHEETS.INVOICES);
-    const freelancers = getSheetData(SHEETS.FREELANCERS);
-
-    const metrics = {
-      totalBookings: bookings.length,
-      activeClients: clients.filter(c => c.status === 'Active').length,
-      pendingInvoices: invoices.filter(i => i.status === 'Pending').length,
-      activeFreelancers: freelancers.filter(f => f.status === 'Active').length,
-      recentBookings: bookings.slice(-5).reverse(),
-      recentInvoices: invoices.slice(-5).reverse()
-    };
-
-    return createResponse(true, 'Metrics retrieved', metrics);
-  } catch (error) {
-    return createResponse(false, 'Error getting metrics: ' + error.message, null, 500);
-  }
-}
-
-// ==================== INVOICE GENERATION ====================
-
-function handleGenerateInvoice(payload) {
-  const { clientId, lineItems, taxRate } = payload;
-
-  if (!clientId || !lineItems || lineItems.length === 0) {
-    return createResponse(false, 'Client and line items required', null, 400);
-  }
-
-  try {
-    const clients = getSheetData(SHEETS.CLIENTS);
-    const client = clients.find(c => c.id === clientId);
-
-    if (!client) {
-      return createResponse(false, 'Client not found', null, 404);
-    }
-
-    const invoiceId = generateUniqueId();
-    const subtotal = lineItems.reduce((sum, item) => sum + (item.quantity * item.rate), 0);
-    const tax = subtotal * (taxRate || 0);
-    const total = subtotal + tax;
-
-    const invoiceData = {
-      id: invoiceId,
-      clientId: clientId,
-      clientName: client.name,
-      lineItems: JSON.stringify(lineItems),
-      subtotal: subtotal,
-      tax: tax,
-      total: total,
-      status: 'Draft',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    // Create new invoice
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const invoiceSheet = ss.getSheetByName(SHEETS.INVOICES);
-    const headers = invoiceSheet.getRange(1, 1, 1, invoiceSheet.getLastColumn()).getValues()[0];
-    const rowData = headers.map(header => invoiceData[header] || '');
-    invoiceSheet.appendRow(rowData);
-
-    return createResponse(true, 'Invoice generated', {
-      invoiceId: invoiceId,
-      invoice: invoiceData
-    });
-  } catch (error) {
-    return createResponse(false, 'Error generating invoice: ' + error.message, null, 500);
-  }
-}
-
-// ==================== HELPER FUNCTIONS ====================
-
-/**
- * Get all data from a sheet as array of objects
- */
-function getSheetData(sheetName) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(sheetName);
-
-  if (!sheet) {
-    throw new Error(`Sheet '${sheetName}' not found`);
-  }
-
-  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  const lastRow = sheet.getLastRow();
-  
-  // If only header row exists, return empty array
-  if (lastRow < 2) {
-    return [];
-  }
-  
-  const data = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
-
-  return data.map(row => {
-    const obj = {};
-    headers.forEach((header, idx) => {
-      obj[header] = row[idx];
-    });
-    return obj;
-  });
-}
-
-/**
- * Initialize spreadsheet with required sheets and headers
- */
-function initializeSpreadsheet() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-
-  const sheetConfigs = {
-    [SHEETS.USERS]: ['id', 'name', 'email', 'password', 'role', 'createdAt', 'updatedAt'],
-    [SHEETS.CLIENTS]: ['id', 'name', 'email', 'phone', 'company', 'address', 'status', 'createdAt', 'updatedAt'],
-    [SHEETS.BOOKINGS]: ['id', 'clientId', 'clientName', 'projectType', 'startDate', 'endDate', 'status', 'notes', 'createdAt', 'updatedAt'],
-    [SHEETS.INVOICES]: ['id', 'clientId', 'clientName', 'lineItems', 'subtotal', 'tax', 'total', 'status', 'createdAt', 'updatedAt'],
-    [SHEETS.FREELANCERS]: ['id', 'name', 'email', 'phone', 'skills', 'dailyRate', 'status', 'createdAt', 'updatedAt'],
-    [SHEETS.EMPLOYEES]: ['id', 'name', 'email', 'phone', 'role', 'joinDate', 'status', 'createdAt', 'updatedAt'],
-    [SHEETS.EXPENSES]: ['id', 'description', 'amount', 'category', 'date', 'approvalStatus', 'createdAt', 'updatedAt']
-  };
-
-  Object.keys(sheetConfigs).forEach(sheetName => {
-    let sheet = ss.getSheetByName(sheetName);
-    if (!sheet) {
-      sheet = ss.insertSheet(sheetName);
-      sheet.appendRow(sheetConfigs[sheetName]);
-    }
-  });
-
-  // Add default admin user if Users sheet is empty
-  const users = getSheetData(SHEETS.USERS);
-  if (users.length === 0) {
-    const userSheet = ss.getSheetByName(SHEETS.USERS);
-    userSheet.appendRow([
-      generateUniqueId(),
-      'Admin',
-      'admin@multimedia.com',
-      'Admin@123', // Change this in production!
-      'Admin',
-      new Date().toISOString(),
-      new Date().toISOString()
-    ]);
-  }
-}
-
-/**
- * Generate unique ID
- */
-function generateUniqueId() {
-  return 'ID_' + Utilities.getUuid().substr(0, 8).toUpperCase();
-}
-
-/**
- * Generate session token (simple implementation)
- */
-function generateSessionToken() {
-  return Utilities.getUuid() + '_' + Date.now();
-}
-
-/**
- * Create consistent response format
- */
-function createResponse(success, message, data, statusCode = 200) {
-  return ContentService.createTextOutput(JSON.stringify({
-    success,
-    message,
-    data,
-    statusCode
-  })).setMimeType(ContentService.MimeType.JSON);
+function doPost(e) {
+	try {
+		var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : '';
+		if (action === 'save') {
+			var payload = (e && e.parameter && e.parameter.payload) ? e.parameter.payload : '';
+			var result = saveDashboardPayload_(payload);
+
+			return jsonOutput({ ok: true, data: result });
+		}
+
+		if (action === 'auth') {
+			var email = (e && e.parameter && e.parameter.email) ? e.parameter.email : '';
+			var password = (e && e.parameter && e.parameter.password) ? e.parameter.password : '';
+			var user = authenticateDashboardUser_(email, password);
+
+			if (!user) {
+				return jsonOutput({ ok: false, error: 'Invalid email or password.' });
+			}
+
+			return jsonOutput({ ok: true, data: user });
+		}
+
+		return jsonOutput({ ok: false, error: 'Unsupported action for POST.' });
+	} catch (error) {
+		return jsonOutput({ ok: false, error: String(error) });
+	}
 }
